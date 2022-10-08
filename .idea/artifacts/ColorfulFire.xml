@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="ColorfulFire">
+    <output-path>$PROJECT_DIR$/../../ProjectKorra/Abilities</output-path>
+    <root id="archive" name="ColorfulFire.jar">
+      <element id="module-output" name="CustomBendingParticles" />
+    </root>
+  </artifact>
+</component>
