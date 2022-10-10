@@ -2,14 +2,18 @@ package me.dreig_michihi.custombendingparticles;
 
 import com.projectkorra.projectkorra.BendingPlayer;
 import com.projectkorra.projectkorra.Element;
+import com.projectkorra.projectkorra.GeneralMethods;
 import com.projectkorra.projectkorra.ability.*;
 import com.projectkorra.projectkorra.ability.functional.Functional;
 import com.projectkorra.projectkorra.util.ParticleEffect;
-import org.bukkit.*;
+import com.projectkorra.projectkorra.waterbending.SurgeWall;
+import org.bukkit.Color;
+import org.bukkit.Location;
+import org.bukkit.Particle;
 import org.bukkit.block.Block;
+import org.bukkit.util.Vector;
 
 import java.util.Objects;
-import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class CustomBendingParticles extends CoreAbility implements PassiveAbility, AddonAbility {
@@ -76,34 +80,24 @@ public class CustomBendingParticles extends CoreAbility implements PassiveAbilit
     @Override
     public void load() {
         originalFire = FireAbility.fireParticles;
-        FireAbility.fireParticles = args -> {
-            BendingPlayer bPlayer = (BendingPlayer) args[0];
-            Location loc = (Location) args[1];
-            int amount = (int) args[2];
-            double xOffset = (double) args[3];
-            double yOffset = (double) args[4];
-            double zOffset = (double) args[5];
+        FireAbility.fireParticles = (ability, loc, amount, xOffset, yOffset, zOffset, extra, data) -> {
+            BendingPlayer bPlayer = ability.getBendingPlayer();
             if (bPlayer.hasSubElement(AddonElements.COLORFUL_FIRE)) {
                 if (amount > 3) {
                     displayColoredFire(bPlayer, loc, amount / 3, xOffset, yOffset, zOffset);
-                    originalFire.play(bPlayer, loc, amount - amount / 3, xOffset, yOffset, zOffset);
+                    originalFire.play(ability, loc, amount - amount / 3, xOffset, yOffset, zOffset, 0, null);
                 } else {
                     if (ThreadLocalRandom.current().nextDouble() < 0.33)
                         displayColoredFire(bPlayer, loc, amount, xOffset, yOffset, zOffset);
-                    else originalFire.play(bPlayer, loc, amount, xOffset, yOffset, zOffset);
+                    else originalFire.play(ability, loc, amount, xOffset, yOffset, zOffset, 0, null);
                 }
             } else
-                originalFire.play(bPlayer, loc, amount, xOffset, yOffset, zOffset);
+                originalFire.play(ability, loc, amount, xOffset, yOffset, zOffset, 0, null);
         };
-        originalLightning = FireAbility.lightningParticles;
-        FireAbility.lightningParticles = args -> {
-            Location loc = (Location) args[0];
-            double xOffset = (double) args[1];
-            double yOffset = (double) args[2];
-            double zOffset = (double) args[3];
-
+        originalLightning = LightningAbility.lightningParticles;
+        LightningAbility.lightningParticles = (ability, loc, amount, xOffset, yOffset, zOffset, extra, data) -> {
             displayColoredParticle("00DDFF", 0.3F, loc, 1, xOffset, yOffset, zOffset);
-            Random random = new Random();
+            ThreadLocalRandom random = ThreadLocalRandom.current();
             if (random.nextDouble() < 0.3) {
                 ParticleEffect.BUBBLE_POP.display(loc, 1, xOffset, yOffset, zOffset);
             }
@@ -123,50 +117,51 @@ public class CustomBendingParticles extends CoreAbility implements PassiveAbilit
                 }
             }
         };
-        originalWater = WaterAbility.waterEffect;
-        WaterAbility.waterEffect = args -> {
-            Block block = (Block) args[0];
-            Location location = block.getLocation();
-            ParticleEffect.WATER_WAKE.display(location.add(0.5, 0.5, 0.5), 3, 0.1, 0.2, 0.1, 0.075);
-            String hexVal = "0094FF";
+        originalWater = WaterAbility.focusEffect;
+        WaterAbility.focusEffect = (ability, location, amount, xOffset, yOffset, zOffset, extra, data) -> {
+            boolean ice = false;
+            if (ability != null && ability.getPlayer() != null) {
+                location.add(GeneralMethods.getDirection(location, ability.getPlayer().getEyeLocation()).normalize().multiply(0.707));
+                if (ability instanceof IceAbility || ability instanceof SurgeWall)
+                    ice = true;
+            }
+            ParticleEffect.WATER_WAKE.display(location, 3, 0.1, 0.2, 0.1, 0.075);
+            String hexVal = ice ? "D3F6FF" : "0094FF";
             int r = Integer.valueOf(hexVal.substring(0, 2), 16);
             int g = Integer.valueOf(hexVal.substring(2, 4), 16);
             int b = Integer.valueOf(hexVal.substring(4, 6), 16);
-            Particle.DustOptions dust = new Particle.DustOptions(Color.fromRGB(r, g, b), 0.25F + (float) (Math.random()));
-            ParticleEffect.REDSTONE.display(location, 1, 0.2, 0.3, 0.2, 0.01, dust);
+            Particle.DustOptions dust = new Particle.DustOptions(Color.fromRGB(r, g, b), (ice ? 0.35F : 0.25F) + (float) (Math.random()));
+            ParticleEffect.REDSTONE.display(location, 1, ice ? 0.1 : 0.15, ice ? 0.5 : 0.3, ice ? 0.1 : 0.15, 0.01, dust);
         };
         originalAir = AirAbility.airParticles;
-        AirAbility.airParticles = args -> {
-            Location location = (Location) args[0];
-            int amount = (int) args[1];
-            double offsetX = (double) args[2];
-            double offsetY = (double) args[3];
-            double offsetZ = (double) args[4];
-            if (location.getBlock().isLiquid()) {
-                ParticleEffect.WATER_BUBBLE.display(location, amount, offsetX, offsetY, offsetZ, 0.05);
+        AirAbility.airParticles = (ability, loc, amount, xOffset, yOffset, zOffset, extra, data) -> {
+            if (loc.getBlock().isLiquid()) {
+                ParticleEffect.WATER_BUBBLE.display(loc, amount, xOffset, yOffset, zOffset, 0.05);
                 return;
             }
             //Particle.SPELL.display(location, amount, offsetX, offsetY, offsetZ, extra);
             ThreadLocalRandom random = ThreadLocalRandom.current();
             //if(random.nextBoolean())
-            ParticleEffect.BUBBLE_POP.display(location.clone()
+            ParticleEffect.BUBBLE_POP.display(loc.clone()
                             .add(
-                                    random.nextFloat(-1, 1) * offsetX + 0.1 * random.nextFloat(-1, 1),
-                                    random.nextFloat(-1, 1) * offsetY + 0.1 * random.nextFloat(-1, 1),
-                                    random.nextFloat(-1, 1) * offsetZ + 0.1 * random.nextFloat(-1, 1)
+                                    random.nextFloat(-1, 1) * xOffset + 0.1 * random.nextFloat(-1, 1),
+                                    random.nextFloat(-1, 1) * yOffset + 0.1 * random.nextFloat(-1, 1),
+                                    random.nextFloat(-1, 1) * zOffset + 0.1 * random.nextFloat(-1, 1)
                             ), 0,
-                    random.nextFloat(-1, 1) * offsetX,
+                    random.nextFloat(-1, 1) * xOffset,
                     1,
-                    random.nextFloat(-1, 1) * offsetZ, 0.05);
+                    random.nextFloat(-1, 1) * zOffset, 0.05);
             int i = 0;
+            int randomR = random.nextInt(150, 250);
+            int randomGB = random.nextInt(randomR, 250);
             do {
                 ParticleEffect.SPELL_MOB_AMBIENT.display(
-                        location.clone().add(
-                                random.nextFloat(-1, 1) * offsetX,
-                                random.nextFloat(-1, 1) * offsetY,
-                                random.nextFloat(-1, 1) * offsetZ),
+                        loc.clone().add(
+                                random.nextFloat(-1, 1) * xOffset,
+                                random.nextFloat(-1, 1) * yOffset,
+                                random.nextFloat(-1, 1) * zOffset),
                         0,
-                        55 / 255D, 255 / 255D, 255 / 255D, 100.1);
+                        randomR / 255D, randomGB / 255D, randomGB / 255D, random.nextDouble(0.75, 1));
                 i++;
             } while (i <= amount);
         };
@@ -175,8 +170,8 @@ public class CustomBendingParticles extends CoreAbility implements PassiveAbilit
     @Override
     public void stop() {
         FireAbility.fireParticles = originalFire;
-        FireAbility.lightningParticles = originalLightning;
-        WaterAbility.waterEffect = originalWater;
+        LightningAbility.lightningParticles = originalLightning;
+        WaterAbility.focusEffect = originalWater;
         AirAbility.airParticles = originalAir;
     }
 
